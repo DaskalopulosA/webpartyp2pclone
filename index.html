@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f2e9" />
+    <meta name="description" content="A tiny peer-to-peer party. Open a room, invite a friend, and make the numbers move." />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>WebParty / Button Club</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header">
+        <a class="wordmark" href="./" aria-label="WebParty home"><span class="brand-icon" aria-hidden="true">w.</span>webparty<span class="edition">POC / 001</span></a>
+        <span class="header-note"><span class="dot"></span> A little internet get-together</span>
+      </header>
+
+      <main>
+        <section id="lobby" class="lobby">
+          <div class="intro">
+            <p class="eyebrow">TINY GAME. REAL CONNECTIONS.</p>
+            <h1>Good company.<br />One <span class="underline">big button.</span></h1>
+            <p class="lede">A room for your friends. A button to press.<br />Watch everyone’s clicks arrive, browser to browser.</p>
+            <div class="intro-foot"><span class="mini-star" aria-hidden="true">✳</span> No accounts. No downloads. Just a link.</div>
+          </div>
+          <section class="join-card" aria-labelledby="join-title">
+            <div class="card-kicker"><span>YOU’RE INVITED</span><span aria-hidden="true">↗</span></div>
+            <h2 id="join-title">Come on in.</h2>
+            <label for="name">Your nickname</label>
+            <input id="name" maxlength="24" autocomplete="off" placeholder="e.g. Button enthusiast" />
+            <button id="create" class="button primary">Start a new room <span aria-hidden="true">→</span></button>
+            <div class="divider"><span>or join the party</span></div>
+            <form id="join-form">
+              <label for="room-input">Room code or invite URL</label>
+              <div class="join-row"><input id="room-input" required autocomplete="off" spellcheck="false" placeholder="XXXXXXXX" /><button class="button secondary" type="submit">Join <span aria-hidden="true">↗</span></button></div>
+            </form>
+            <p class="card-note">Every tab is a new player. Try inviting yourself.</p>
+          </section>
+        </section>
+
+        <section id="room-view" hidden>
+          <div class="room-topline"><div><p class="eyebrow">YOUR LITTLE CORNER OF THE INTERNET</p><h1 class="room-title">Button Club<span class="title-dot">.</span></h1></div><button id="leave" class="button text-button">Leave room ↗</button></div>
+          <div class="invite-bar"><div><span class="label">ROOM CODE</span><strong id="room-code"></strong></div><div class="invite-actions"><button id="copy-code" class="button small">Copy code</button><button id="copy-link" class="button small dark">Copy invite link ↗</button></div></div>
+          <div class="game-grid">
+            <section class="play-card" aria-labelledby="game-title">
+              <div class="card-kicker"><span>EXPERIMENT / 001</span><span id="play-state">SOLO PRACTICE</span></div>
+              <h2 id="game-title">Make the numbers move.</h2>
+              <p>No timer. No stakes. Just click, and watch your friends click back.</p>
+              <button id="tap" class="tap-button" aria-label="Press the big button"><span aria-hidden="true">↖</span> PUSH ME<small>+1 to the party</small></button>
+              <div class="party-total"><span id="total">0</span><span>clicks in this connected party</span></div>
+            </section>
+            <section class="players-card" aria-labelledby="players-title"><div class="section-heading"><h2 id="players-title">The party</h2><span id="player-count" class="count">1</span></div><p class="muted">Good to see you here.</p><ol id="players"></ol><div id="connection-hint" class="connection-hint" role="status"></div></section>
+          </div>
+          <details id="diagnostics" class="diagnostics">
+            <summary><span><span id="connection-dot" class="dot"></span> Connection lab</span><span id="network-status">Discovering peers</span></summary>
+            <div class="diagnostics-body"><p class="muted">Discovery uses public Nostr relays. Nicknames and scores use direct WebRTC. No TURN relay is configured.</p><dl id="network-info"></dl><h3>Discovery relays</h3><ul id="relays" class="mono-list"></ul><h3>Connected peers</h3><ul id="peer-details" class="mono-list"></ul><div class="section-heading"><h3>Event log</h3><button id="copy-debug" class="button small">Copy diagnostics</button></div><pre id="logs" tabindex="0" aria-label="Connection event log"></pre></div>
+          </details>
+        </section>
+        <p id="notice" role="status" aria-live="polite"></p>
+      </main>
+      <footer><span>Made of static files & a little peer pressure.</span><span>WEBRTC <span aria-hidden="true">↔</span> BROWSER TO BROWSER</span></footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
