@@ -1,7 +1,7 @@
 import { joinRoom, selfId, getRelaySockets } from 'trystero';
 
 // Shared by local builds and GitHub Pages. Change this for an unrelated app.
-export const APP_ID = 'webparty-button-club-8c5e94b1-v1';
+export const APP_ID = 'webparty-arcade-8c5e94b1-v2';
 export { selfId };
 
 export function connectRoom(roomId, { onJoin, onLeave, onMessage, onStatus, onLog }) {
@@ -22,7 +22,7 @@ export function connectRoom(roomId, { onJoin, onLeave, onMessage, onStatus, onLo
   }, roomId, {
     onJoinError: ({ error, peerId }) => log(`Connection error for ${peerId}: ${error}`),
   });
-  const action = room.makeAction('state-v1');
+  const action = room.makeAction('arcade-v2');
   action.onMessage = (data, { peerId }) => {
     if (closed || !connected.has(peerId)) return;
     counts.received += 1;
@@ -103,6 +103,15 @@ export function connectRoom(roomId, { onJoin, onLeave, onMessage, onStatus, onLo
       } catch (error) { log(`Send failed: ${error.message}. The next snapshot will retry.`); }
     },
     snapshot,
+    async ping(peerId) {
+      if (closed || !connected.has(peerId)) throw new Error('That player is no longer connected.');
+      let timeout;
+      try {
+        return await Promise.race([room.ping(peerId), new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('No reply within 5 seconds. Try again when your friend is connected.')), 5000);
+        })]);
+      } finally { clearTimeout(timeout); }
+    },
     async leave() {
       if (closed) return;
       log('Leaving room and closing connections.');

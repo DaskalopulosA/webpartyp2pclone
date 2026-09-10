@@ -1,9 +1,19 @@
 import './style.css';
-import { createGame } from './game.js';
+import { createArcade, GAMES } from './arcade.js';
+import { mountGames } from './views.js';
 import { newRoomCode, parseRoomCode, roomFromHash, inviteUrl } from './room-code.js';
 
 const $ = (id) => document.getElementById(id);
-let connection, game, myId, syncTimer, joining = false, lastStatus;
+let connection, arcade, myId, syncTimer, simulationTimer, joining = false, lastStatus;
+let selected = 'button', renderPending = false;
+const views = mountGames(() => arcade, () => connection, notice, id => {
+  selected = id; views.clearControls(); arcade?.select(id); notice('');
+});
+function scheduleRender() {
+  if (renderPending) return;
+  renderPending = true;
+  requestAnimationFrame(() => { renderPending = false; if (arcade) renderGame(); });
+}
 const events = [];
 const initialRoom = roomFromHash(location.hash);
 if (initialRoom) {
@@ -30,23 +40,28 @@ function element(tag, className, text) {
 }
 
 function renderGame() {
-  const entries = [...game.players].sort(([idA, a], [idB, b]) => b.clicks - a.clicks || idA.localeCompare(idB));
-  $('player-count').textContent = entries.length;
-  // BigInt keeps the displayed sum exact even for large (untrusted) counters.
-  $('total').textContent = entries.reduce((total, [, p]) => total + BigInt(p.clicks), 0n).toLocaleString();
-  $('players').replaceChildren(...entries.map(([id, p], index) => {
-    const row = element('li', `player ${id === myId ? 'is-you' : ''}`);
-    row.dataset.peerId = id;
-    const avatar = element('span', 'avatar', p.name.slice(0, 1).toUpperCase());
+  const ids = [myId, ...arcade.peers];
+  const scoreOf = id => selected === 'button' ? arcade.button.players.get(id)?.clicks ?? 0
+    : selected === 'cursors' ? arcade.cursors.states.get(id)?.score ?? 0
+    : selected === 'arena' ? Math.ceil(arcade.arena.round?.players.find(p => p.id === id)?.hp ?? 0)
+    : selected === 'jump' ? Math.floor(arcade.jump.round?.players.find(p => p.id === id)?.best ?? 0) : null;
+  ids.sort((a, b) => (scoreOf(b) ?? 0) - (scoreOf(a) ?? 0) || a.localeCompare(b));
+  $('player-count').textContent = ids.length;
+  $('total').textContent = [...arcade.button.players.values()].reduce((total, p) => total + BigInt(p.clicks), 0n).toLocaleString();
+  $('players').replaceChildren(...ids.map(id => {
+    const profile = arcade.profiles.get(id);
+    const name = profile?.name ?? 'Connecting…';
+    const row = element('li', `player ${id === myId ? 'is-you' : ''}`); row.dataset.peerId = id;
+    const avatar = element('span', 'avatar', name.slice(0, 1).toUpperCase());
     avatar.style.setProperty('--hue', [...id].reduce((n, c) => n + c.charCodeAt(0), 0) % 360);
     const identity = element('div', 'player-identity');
-    const name = element('strong', 'player-name', p.name);
-    if (id === myId) name.append(element('small', 'you-label', 'YOU'));
-    identity.append(name, element('span', 'player-meta', `${index === 0 && p.clicks ? 'Leading the clicks · ' : ''}${id.slice(0, 8)}`));
-    const score = element('strong', 'player-score', p.clicks.toLocaleString());
-    row.append(avatar, identity, score);
+    const label = element('strong', 'player-name', name);
+    if (id === myId) label.append(element('small', 'you-label', 'YOU'));
+    identity.append(label, element('span', 'player-meta', GAMES.find(g => g.id === profile?.game)?.title ?? 'Joining the party'));
+    row.append(avatar, identity, element('strong', 'player-score', scoreOf(id)?.toLocaleString() ?? ''));
     return row;
   }));
+  views.render(selected);
 }
 
 function renderStatus(status) {
@@ -66,7 +81,8 @@ function renderStatus(status) {
     ['Room ID', status.roomId], ['Your peer ID', status.selfId], ['App namespace', status.appId],
     ['Transport', 'WebRTC data channel · STUN only · no TURN'],
     ['Browser network hint', status.online ? 'Online (not a connectivity guarantee)' : 'Offline'],
-    ['State messages', `${status.sent} sent / ${status.received} received`],
+    ['Game messages', `${status.sent} sent / ${status.received} received`],
+    ['Playing here', GAMES.find(g => g.id === selected)?.title ?? selected],
   ];
   $('network-info').replaceChildren(...rows.flatMap(([key, value]) => [element('dt', '', key), element('dd', '', value)]));
   $('relays').replaceChildren(...status.relays.map(r => element('li', '', `${r.state.padEnd(10)} ${r.url}`)));
@@ -87,16 +103,11 @@ async function enterRoom(code) {
     const { connectRoom, selfId } = await import('./network.js');
     myId = selfId;
     const name = $('name').value.trim().slice(0, 24) || `Guest ${selfId.slice(0, 4)}`;
-    game = createGame(myId, name);
+    arcade = createArcade(myId, name, { send: (packet, peerId) => connection?.send(packet, peerId), changed: scheduleRender, log });
     connection = connectRoom(code, {
-      onJoin: (id) => { void connection.send(game.snapshot(), id); },
-      onLeave: (id) => { game.remove(id); renderGame(); },
-      onMessage: (id, data) => {
-        if (game.receive(id, data)) {
-          log(`State received from ${id}: ${data.clicks} clicks`);
-          renderGame();
-        }
-      },
+      onJoin: id => arcade.join(id),
+      onLeave: id => arcade.leave(id),
+      onMessage: (id, data) => arcade.receive(id, data),
       onStatus: renderStatus, onLog: log,
     });
     history.replaceState(null, '', inviteUrl(location.href, code));
@@ -104,7 +115,8 @@ async function enterRoom(code) {
     $('lobby').hidden = true;
     $('room-view').hidden = false;
     renderGame();
-    syncTimer = setInterval(() => { void connection?.send(game.snapshot()); }, 5000);
+    syncTimer = setInterval(() => arcade.sync(), 5000);
+    simulationTimer = setInterval(() => views.controls(selected), 50);
     $('tap').focus({ preventScroll: true });
   } catch (error) {
     log(`Unable to join: ${error.message}`);
@@ -123,15 +135,13 @@ $('join-form').addEventListener('submit', (event) => {
   void enterRoom(code);
 });
 $('tap').addEventListener('click', () => {
-  if (!game || !connection) return;
-  game.click();
-  renderGame();
-  log(`Your button press: ${game.snapshot().clicks} clicks; broadcasting state`);
-  void connection.send(game.snapshot());
+  if (!arcade || !connection) return;
+  arcade.click();
+  log(`Your button press: ${arcade.button.snapshot().clicks} clicks; broadcasting state`);
 });
 $('leave').addEventListener('click', async () => {
   $('leave').disabled = true;
-  clearInterval(syncTimer);
+  clearInterval(syncTimer); clearInterval(simulationTimer); views.clearControls();
   try { await connection?.leave(); }
   finally {
     // A fresh document also gives a fresh peer ID and a zeroed counter.
@@ -158,6 +168,6 @@ async function copy(text, message) {
 $('copy-code').addEventListener('click', () => copy($('room-code').textContent, 'Room code copied.'));
 $('copy-link').addEventListener('click', () => copy(location.href, 'Invite link copied. Send it to your friends.'));
 $('copy-debug').addEventListener('click', () => copy(JSON.stringify({ ...lastStatus, logs: events }, null, 2), 'Diagnostics copied. Includes your room code and peer IDs.'));
-window.addEventListener('pagehide', () => { clearInterval(syncTimer); void connection?.leave(); });
+window.addEventListener('pagehide', () => { clearInterval(syncTimer); clearInterval(simulationTimer); views.clearControls(); void connection?.leave(); });
 window.addEventListener('pageshow', (event) => { if (event.persisted) location.reload(); });
 window.addEventListener('hashchange', () => location.reload());

@@ -104,3 +104,56 @@ footer > span:last-child { font: 9px monospace; letter-spacing: 1px; }
 @media (max-width: 850px) { #app { padding: 0 26px; } .lobby { gap: 30px; grid-template-columns: 1fr 1fr; } h1 { font-size: 44px; } .header-note { display: none; } .join-card { padding: 24px; } .game-grid { gap: 16px; } .play-card, .players-card { padding: 20px; } }
 @media (max-width: 620px) { #app { padding: 0 20px; } .site-header { min-height: 80px; } .lobby { grid-template-columns: 1fr; gap: 38px; padding: 38px 0; } h1 { font-size: 44px; letter-spacing: -2px; } .lede { font-size: 14px; margin-bottom: 20px; } .join-card { transform: none; } .join-card > * { transform: none; } .game-grid { grid-template-columns: 1fr; } .room-title { font-size: 36px; } .room-topline .eyebrow { font-size: 8px; } .invite-bar { align-items: stretch; flex-direction: column; gap: 14px; } .invite-actions .button { flex: 1; } .play-card h2 { font-size: 23px; } footer { flex-direction: column; align-items: flex-start; gap: 10px; } dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+/* The arcade adds eight small demonstrations to the same room shell. */
+.lobby h1 { font-size: clamp(34px, 4vw, 56px); }
+.arcade-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 30px 0 16px; }
+.arcade-heading p { font-size: 13px; color: #69715a; margin: 0; }
+.arcade-heading > span { font: 9px monospace; color: #848b74; }
+#game-menu { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+.game-choice { position: relative; text-align: left; border: 1px solid #d4dac7; background: #fcfcf5; color: var(--ink); border-radius: 9px; padding: 15px; min-height: 118px; }
+.game-choice:hover { background: #e9eddd; }
+.game-choice[aria-pressed="true"] { background: #e0eac9; border-color: #7e9657; box-shadow: inset 0 0 0 1px #7e9657; }
+.game-icon { display: block; font-size: 25px; line-height: 1; margin-bottom: 13px; color: #637742; }
+.game-number { position: absolute; top: 17px; right: 15px; font: 9px monospace; color: #929981; }
+.game-choice strong { display: block; font-size: 13px; margin-bottom: 5px; }
+.game-choice small { display: block; font-size: 10px; color: #7b836c; }
+.game-grid { grid-template-columns: minmax(0, 1.7fr) minmax(230px, 1fr); align-items: start; }
+#game-stage, .game-panel { min-width: 0; }
+.players-card { position: sticky; top: 15px; }
+.game-panel { min-height: 470px; }
+.game-panel > p { max-width: 430px; }
+.control-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 24px 0; }
+select { max-width: 100%; min-width: 0; padding: 10px; border: 1px solid #c8d1b8; border-radius: 6px; font: 12px 'Segoe UI', sans-serif; background: #fafbf3; color: var(--ink); flex: 1; }
+select:focus-visible, .pixel:focus-visible, canvas:focus-visible { outline: 3px solid #6b8235; outline-offset: 2px; }
+.game-status { font-size: 12px; line-height: 1.8; font-weight: 600; color: #627247; }
+#cursor-field { position: relative; overflow: hidden; height: 280px; margin: 25px 0 16px; border: 1px solid #c9d8bb; border-radius: 10px; background: radial-gradient(circle, #cbd8c1 1px, transparent 1px) 0 0 / 18px 18px, #f6f9ed; touch-action: none; }
+#cursor-target { position: absolute; transform: translate(-50%, -50%); border: 0; border-radius: 50%; width: 44px; height: 44px; background: #f1cf67; color: #826126; font-size: 28px; z-index: 2; }
+#cursor-markers { pointer-events: none; position: absolute; inset: 0; }
+.live-cursor { position: absolute; font-size: 11px; font-weight: 750; white-space: nowrap; max-width: 110px; overflow: hidden; transform: translate(-4px, -4px); }
+#palette { display: flex; gap: 10px; justify-content: center; margin: 24px 0 16px; }
+.swatch { border-radius: 50%; height: 28px; width: 28px; border: 1px solid #c5cfb6; }
+.swatch[aria-pressed="true"] { outline: 2px solid #586641; outline-offset: 3px; }
+#pixel-board { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin: 18px auto; max-width: 480px; border: 5px solid #fffef6; border-radius: 7px; background: #d7dfcb; }
+.pixel { aspect-ratio: 1; padding: 0; border: 0; border-radius: 2px; min-width: 0; }
+.message-list { text-align: left; max-height: 390px; overflow-y: auto; }
+.secret-card { padding: 16px; border: 1px solid #ced8bb; background: #f9fbef; border-radius: 8px; margin-top: 12px; font-size: 12px; }
+.secret-card p { line-height: 1.7; }
+.secret-answers { display: flex; flex-wrap: wrap; gap: 6px; }
+.secret-result { font-weight: 700; color: #687d3f; }
+.secret-sent { font-size: 11px; line-height: 1.8; color: #707a60; border-bottom: 1px solid #d5dec6; padding-bottom: 10px; }
+#tiles-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; max-width: 260px; margin: 18px auto 0; }
+.tile { aspect-ratio: 1; border: 1px solid #c6d3b4; border-radius: 10px; font: 36px 'Segoe UI', sans-serif; background: #fffff8; color: #657e49; }
+.tile:disabled { cursor: default; opacity: 1; }
+.tile:enabled:hover { background: #dce8c5; }
+.echo-result { margin: 30px 0 15px; font-size: 25px; letter-spacing: -.6px; font-weight: 700; }
+.round-bar { margin: 20px 0 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.competition-panel { padding: 22px 18px; }
+.competition-panel canvas { width: 100%; display: block; border-radius: 9px; border: 1px solid #c6d6c4; touch-action: none; }
+.competition-panel h2 { margin-top: 20px; }
+.competition-panel .muted { margin-top: 12px; font-size: 10px; }
+.touch-controls { display: flex; justify-content: center; gap: 7px; margin-top: 14px; }
+.touch-controls button { touch-action: none; user-select: none; min-width: 42px; padding: 12px; }
+.touch-controls button:active { background: #d8e6bd; }
+@media (max-width: 850px) { .arcade-heading > span { display: none; } .game-grid { grid-template-columns: minmax(0, 1.6fr) minmax(210px, 1fr); } .game-choice { padding: 13px 10px; } }
+@media (max-width: 620px) { #game-menu { grid-template-columns: repeat(2, 1fr); gap: 8px; } .game-choice { min-height: 105px; } .game-grid { grid-template-columns: 1fr; } .players-card { position: static; } .game-panel { min-height: 420px; } .lobby h1 { font-size: 37px; } .lobby .underline { white-space: normal; } .round-bar { margin-top: 16px; } .competition-panel { padding: 18px 12px; } .card-kicker { font-size: 8px; } }

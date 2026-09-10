@@ -1,10 +1,55 @@
-# WebParty / Button Club
+# WebParty / Minigame Arcade
 
 [Play the live demo](https://daskalopulosa.github.io/webpartyp2pclone/)
 
-A deliberately tiny browser-to-browser party game. Create a room, share its code or
-link, and press a button. Everyone sees the connected players and their click counts.
-No host election, accounts, persistent scores, or framework scaffolding.
+Eight browser-to-browser minigames in one shared room. All deployed files are static;
+no application backend, database, TURN service, API keys, or accounts are required.
+Public Nostr relays provide discovery; game traffic uses direct WebRTC.
+
+## The games and the capabilities they demonstrate
+
+| Game | Play | Capability |
+| --- | --- | --- |
+| Button Club | Click the big button; compare counts. | Player-owned state, broadcast, duplicate-safe counters |
+| Cursor Chase | Move around and collect your gold dots. | Continuous position updates, presence, independent player targets |
+| Pixel Party | Paint a 12 × 8 canvas together. | Concurrent shared edits, deterministic conflict resolution, late-join snapshots |
+| Secret Signal | Send a symbol clue to one friend; they get one guess. | Targeted private delivery, sender-bound replies; other peers get no clue data |
+| Turn Tiles | Play three-in-a-row against a friend; others watch. | Validated turns, rounds, win/draw detection, spectator state |
+| Echo Guess | Guess a friend's round-trip latency, then ping them. | Targeted request/response, timeouts, actual WebRTC round-trip measurement |
+| Last Light | Scavenge health/ammo, dodge the shrinking storm, outlast rivals. | Host-authoritative movement, projectiles, collisions, pickups, elimination |
+| Sky Sprint | Steer an auto-bouncing character to 3,000 m before your friends. | Host-authoritative physics, platform collisions, checkpoints, race results |
+
+Create/join a room first, then choose any card. Switching games keeps the room,
+connections, and other games' state. Each player chooses their own view; the party
+list shows which game they are viewing. All messages are routed even while another
+game is open. The network namespace is versioned; old Button Club tabs must reload
+to connect to this arcade release.
+
+Last Light is a small survival/battle-royale interpretation of the requested Hunger
+Games type game; Sky Sprint is an original vertical platform racer inspired by the
+Doodle Jump style of play. Both use simple original canvas graphics.
+
+### Competitive game controls and rounds
+
+- **Last Light:** WASD/arrows to move; hold Space or the Fire button to shoot toward
+  the nearest surviving opponent. Orange supply crates restore 25 health and add
+  8 shots. The purple storm deals damage outside the shrinking safe circle. Last
+  survivor wins; at 90 seconds, the survivor with most health wins (equal health draws).
+- **Sky Sprint:** A/D or left/right arrows to steer; jumping is automatic. Orange
+  platforms mark checkpoints every 500 m. Falling too far respawns at your checkpoint.
+  First to 3,000 m wins; at 90 seconds, the highest achieved altitude wins.
+- On touch devices, hold the on-screen movement/Fire buttons. Canvas gameplay also
+  has a visible scoreboard and round status. Cursor Chase and Pixel Party support
+  pointer/touch input; native buttons provide keyboard access to other games.
+- The browser that starts a round becomes its host. It includes up to eight currently
+  connected players (including players viewing another game); select the same card
+  before starting together. A later arrival watches until the next round. One player
+  can start a solo practice. Anyone may start a new round for that game.
+- Keep the host page visible and awake. Simulation runs at 20 steps/second, with
+  authoritative snapshots at 10/second. Suspended/background browsers can slow or
+  pause a round. If the host leaves, the UI reports an interrupted round; another
+  player starts a fresh round. There is no silent host migration. Other players who
+  leave are eliminated from the arena or excluded from the platform race results.
 
 ## Run locally
 
@@ -98,41 +143,54 @@ Browser A/B ── public STUN: discover network candidates
 Browser A <════ direct encrypted WebRTC data channel: game state ════> Browser B
 ```
 
-- `src/network.js`: Trystero Nostr adapter, room lifecycle, message transport,
-  relay/peer diagnostics. It does not know about clicking or scoreboard rules.
-- `src/game.js`: a small in-memory map of player-owned counters, snapshot validation,
-  and duplicate/stale-update handling. No network or DOM dependency.
-- `src/main.js`: DOM rendering, buttons, room lifecycle, and snapshot exchange.
-- `src/room-code.js`: eight-character random room codes and hash URL helpers.
+- `src/network.js`: Trystero room lifecycle, generic packet transport, targeted pings,
+  and relay/peer diagnostics. It contains no game rules.
+- `src/arcade.js`: small shared session layer: profiles, a game registry, message
+  routing, join/leave callbacks, and repair snapshots.
+- `src/game.js` and `src/games/`: pure game models. `competition.js` shares only the
+  round/input/snapshot lifecycle between the two real-time competitive games.
+- `src/main.js` and `src/views.js`: room UI, game selection, rendering, and controls.
+- `src/room-code.js`: random room codes and hash URL helpers.
 
-Trystero derives discovery topics from a shared application namespace and room ID.
-Its public Nostr relays exchange connection offers, answers, and ICE candidates;
-Trystero encrypts signaling using a room-derived key. No Nostr account or configured
-key is required. The library generates any ephemeral protocol keys in the browser.
-Google and Cloudflare STUN endpoints help WebRTC find usable network candidates.
-These third-party services exist and must be reachable, but you deploy and maintain
-none of them. There is no application WebSocket backend, database, function, or TURN
-service. Nostr uses public WebSocket connections only for discovery/signaling.
+The session layer is the beginning of a reusable framework, not a complete engine.
+A game registers a model with `receive(type, data, sender)`, optional `sync(peerId)`,
+and local action methods. The session supplies a game-scoped send callback and a
+change notification. This keeps rules testable without a browser or network.
 
-Nicknames and counters travel exclusively through Trystero actions over reliable,
-ordered WebRTC data channels. Relay sockets may stay open for new arrivals and
-reconnection, but they never carry gameplay. Bundled assets require no runtime CDN.
-The browsers form a full mesh: one direct connection for every connected pair.
+Trystero derives discovery topics from the application namespace and room ID. Public
+Nostr relays exchange offers, answers and ICE candidates; the library encrypts
+signaling with a room-derived key. It generates ephemeral protocol keys internally;
+there is no configured Nostr key or account. Google and Cloudflare STUN endpoints
+help WebRTC find network candidates. These public third-party services must be
+reachable, but you deploy and maintain none of them.
 
-Each player broadcasts `{v: 1, name, clicks}` immediately on a click, directly to a
-new peer on connection, and every five seconds as a repair snapshot. Receivers bind
-the update to the transport's sender ID, validate it, and take the maximum count for
-that sender. Concurrent clicks from different players cannot overwrite each other.
-The total is derived locally from the currently connected players, so it can decrease
-when someone leaves. Partial meshes/network partitions can show different totals;
-this POC has no global authoritative membership or indirect forwarding.
+All names, scores, drawing edits, cursor positions, clues, turns, player controls,
+and simulation snapshots use WebRTC data channels. Public WebSockets only handle
+signaling. Direct private delivery uses a target peer ID; clue payloads are never
+included in broadcast repair snapshots or the application log. Connected recipients
+can inspect their own messages; this is not an anti-cheat or sealed-choice protocol.
+The bundled app needs no runtime CDN. Connections form a full mesh.
+
+Packets have a version, game ID, event type and payload. The sender ID comes from
+the transport. Rules validate payloads and turn/round ownership. Snapshots on join
+and every five seconds repair missed initial state. Button counts merge by maximum;
+pixel cells merge by Lamport timestamp with peer-ID tie-breaks. Cursor motion is
+limited to 20 updates/second. Turn Tiles accepts moves only from the expected seat;
+participants supply validated history to late spectators. Simultaneous round starts
+resolve by a logical clock and peer-ID tie-break. In competitive games, only the
+round author may broadcast authoritative state; other players send controls to it.
+
+Totals and membership are local views of directly connected peers. Partial meshes
+can produce different presence/counter views; competitive games require a direct
+connection to their host. There is no global quorum or relay forwarding. Click totals
+decrease when a player leaves; the shared canvas remains in other peers' memory.
 
 ## Diagnostics and limitations
 
 Connection lab shows the namespace, room and local peer IDs, each established peer's
 RTC/ICE/signaling state, public relay URLs and socket states, sent/received message
 counts, and a bounded event log. It captures relay errors/rejections, peer joins and
-leaves, changed scores, and send failures. **Copy diagnostics** includes the room
+leaves, game events, and send failures. High-frequency simulation/movement payloads and private clue contents are not logged. **Copy diagnostics** includes the room
 code and IDs. Peer details appear once the data channel opens; Trystero does not
 expose every in-progress candidate connection through its public room API.
 
@@ -148,8 +206,9 @@ expose every in-progress candidate connection through its public room API.
 - State exists only in memory. There is no reconnect persistence or room history.
   Everyone leaving loses all state. Keep demos to a few friends; full mesh grows
   as `n × (n − 1) / 2` connections and is not a large-room architecture.
-- Peers can cheat by changing their own client/counter. Payload checks prevent
-  malformed state, not dishonest play or resource exhaustion. Anyone with the room
+- Peers can cheat by modifying their client, and a competitive round host can forge
+  outcomes. Payload/turn checks are not anti-cheat, authentication, or a complete
+  defense against resource exhaustion. Anyone with the room
   code can join. Room codes are invitations, not authentication or secure secrets.
 - WebRTC peers can learn network addresses during connection setup; IPs are not
   player identity. Public signaling/STUN services can observe connection metadata.
@@ -162,9 +221,10 @@ npm run test:browser
 ```
 
 This builds/runs the production app and uses real public signaling and native
-WebRTC. It checks separate IDs in one browser context, two-way and simultaneous
-clicks, late state, room isolation, leaving, mobile width, keyboard input, and no
-uncaught page errors. It inspects native data-channel statistics and closes/blocks
+WebRTC. It checks separate IDs, bidirectional clicks, room isolation, late canvas state,
+private delivery with a third observer, cursors, pings, turn enforcement and spectators,
+both competitive games, host departure/restart, subfolder deployment, mobile width,
+keyboard input, and no uncaught page errors. It inspects native data-channel statistics and closes/blocks
 signaling sockets after connection to verify gameplay continues directly. Expect
 public-network variability; this integration check is separate from deterministic
 CI tests. Set `PLAYWRIGHT_CHANNEL=msedge` to use installed Edge instead of Chromium,
@@ -172,12 +232,12 @@ or `PLAYWRIGHT_BASE_URL` to test an already running local server.
 
 ## Sensible next steps
 
-1. Measure connection success and time-to-connect on real device/network pairs.
-2. Add one more tiny game using the same transport; only then extract shared APIs.
-3. Add room size limits, message size/rate budgets, and clearer reconnect feedback.
-4. Decide whether a future game needs a host, rounds, or consensus before introducing
-   authority/migration complexity. Decide explicitly whether better NAT coverage
-   warrants relaxing the no-TURN constraint.
+1. Measure connection success, latency and host performance on real phones/networks.
+2. Add a ready check and explicit player selection before competitive rounds.
+3. Improve movement smoothing/prediction, mobile camera framing and accessibility.
+4. Add message budgets, room limits and abuse controls before opening larger rooms.
+5. Decide whether persistence, fair competition or automatic host migration is worth
+   the extra protocol complexity. Better NAT coverage requires revisiting no-TURN.
 
 References: [Trystero documentation](https://github.com/dmotz/trystero),
 [signaling architecture](https://trystero.dev/guides/webrtc-without-signaling-server/),
