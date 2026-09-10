@@ -104,3 +104,19 @@ test('the platform route is physically reachable from the starting platform', ()
   assert.equal(s.phase, 'finished'); assert.equal(s.winner, 'climber');
   assert.ok(s.players[0].best >= 3000); assert.equal(s.players[0].falls, 0);
 });
+
+test('hockey has two selected seats, targeted input, late spectators and disconnect results', () => {
+  const p = party('a', 'b', 'c'), a = p.get('a'), b = p.get('b'), c = p.get('c');
+  a.hockey.start('missing'); assert.equal(a.hockey.round, null);
+  a.hockey.start('b'); p.deliver();
+  assert.deepEqual(c.hockey.round.players.map(p => p.id), ['a', 'b']);
+  const frame = structuredClone(a.hockey.round);
+  a.hockey.receive('snapshot', { ...frame, frame: 999 }, 'c'); assert.equal(a.hockey.round.frame, 0);
+  c.hockey.input(1, 1); b.hockey.input(-1, -1, false, true); p.deliver();
+  a.hockey.step(.05); p.deliver();
+  assert.ok(a.hockey.round.players[1].x < 840); assert.deepEqual(b.hockey.round, a.hockey.round);
+  const d = p.add('d'); assert.deepEqual(d.hockey.round, a.hockey.round);
+  a.leave('b'); a.hockey.step(.05); p.deliver();
+  assert.equal(c.hockey.round.winner, 'a'); assert.equal(c.hockey.round.finishReason, 'opponent left');
+  c.hockey.start('a'); p.deliver(); d.leave('c'); assert.equal(d.hockey.interrupted, true);
+});

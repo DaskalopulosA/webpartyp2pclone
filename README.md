@@ -2,7 +2,7 @@
 
 [Play the live demo](https://daskalopulosa.github.io/webpartyp2pclone/)
 
-Eight browser-to-browser minigames in one shared room. All deployed files are static;
+Nine browser-to-browser minigames in one shared room. All deployed files are static;
 no application backend, database, TURN service, API keys, or accounts are required.
 Public Nostr relays provide discovery; game traffic uses direct WebRTC.
 
@@ -18,6 +18,7 @@ Public Nostr relays provide discovery; game traffic uses direct WebRTC.
 | Echo Guess | Guess a friend's round-trip latency, then ping them. | Targeted request/response, timeouts, actual WebRTC round-trip measurement |
 | Last Light | Scavenge health/ammo, dodge the shrinking storm, outlast rivals. | Host-authoritative movement, projectiles, collisions, pickups, elimination |
 | Sky Sprint | Steer an auto-bouncing character to 3,000 m before your friends. | Host-authoritative physics, platform collisions, checkpoints, race results |
+| Table Hockey | Defend your half and knock the puck into your opponent's goal. | Two-player physics, mouse/touch targeting, collision substeps, shared scoring and spectators |
 
 Create/join a room first, then choose any card. Switching games keeps the room,
 connections, and other games' state. Each player chooses their own view; the party
@@ -38,18 +39,27 @@ Doodle Jump style of play. Both use simple original canvas graphics.
 - **Sky Sprint:** A/D or left/right arrows to steer; jumping is automatic. Orange
   platforms mark checkpoints every 500 m. Falling too far respawns at your checkpoint.
   First to 3,000 m wins; at 90 seconds, the highest achieved altitude wins.
+- **Table Hockey:** Choose a connected opponent and start a match. The starter
+  defends the blue left goal; their opponent defends the coral right goal. Move your
+  mouse over the rink, drag a finger, or use WASD/arrows to move your paddle. Paddles
+  stay in their own half. First to five goals wins; after two minutes, the higher
+  score wins (equal scores draw). Each goal resets the puck with a short serve countdown.
+  Other room members, including late joiners, can watch the match and scoreboard.
 - On touch devices, hold the on-screen movement/Fire buttons. Canvas gameplay also
   has a visible scoreboard and round status. Cursor Chase and Pixel Party support
   pointer/touch input; native buttons provide keyboard access to other games.
-- The browser that starts a round becomes its host. It includes up to eight currently
+- The browser that starts a round becomes its host. Last Light and Sky Sprint include up to eight currently
   connected players (including players viewing another game); select the same card
   before starting together. A later arrival watches until the next round. One player
-  can start a solo practice. Anyone may start a new round for that game.
+  can start a solo practice in those two games. Hockey requires two players and
+  includes only the chosen opponent. Anyone may start a new round for a game.
 - Keep the host page visible and awake. Simulation runs at 20 steps/second, with
-  authoritative snapshots at 10/second. Suspended/background browsers can slow or
+  authoritative snapshots at 10/second (20/second for hockey). Hockey subdivides each
+  step into five collision checks to handle fast puck/paddle contact. Suspended/background browsers can slow or
   pause a round. If the host leaves, the UI reports an interrupted round; another
   player starts a fresh round. There is no silent host migration. Other players who
   leave are eliminated from the arena or excluded from the platform race results.
+  In hockey, the opponent disconnecting awards the match to the host.
 
 ## Run locally
 
@@ -65,7 +75,7 @@ Internet access is still needed for public peer discovery. Vite is only a local
 static development server; it never handles players or game messages.
 
 ```sh
-npm test              # deterministic counter / room-link checks
+npm test             # deterministic game, physics, session and room-link checks
 npm run build        # static output in dist/
 npm run preview      # serve that production output locally, normally port 4173
 ```
@@ -88,6 +98,11 @@ two devices, use the HTTPS Pages deployment. No camera/microphone permission is 
    new player with a new ID and zero clicks. The creator can leave without ending
    the room for other connected players.
 
+For hockey, select **Table Hockey** in both tabs, choose the other player's name,
+and press **Start match**. Move each paddle and compare the puck and scores. Open a
+third tab in the same room to watch. Keep the host visible in a separate window
+while controlling the other player to avoid background-tab throttling.
+
 Player IDs come from Trystero's random per-document `selfId`, never from an IP,
 nickname, cookie, localStorage, or shared sessionStorage. Duplicated tabs remain
 independent. Room links prefill the room; the user explicitly joins after naming
@@ -98,6 +113,8 @@ themselves. A code identifies a rendezvous, not a server-side room record.
 1. Deploy to GitHub Pages below. Open the same HTTPS invite on a computer and phone.
 2. Start on the same Wi-Fi; then try one device on mobile data to exercise NAT traversal.
 3. Keep both pages foregrounded, wait for a direct peer, and click in each direction.
+   For hockey, select each other as opponents, then compare mouse control on the
+   computer with dragging on the phone's rink. Each controls one paddle only.
 4. If they cannot connect, compare codes and Connection lab logs, try another network,
    and check VPN/firewall/browser blockers. A successful same-machine test does not
    establish compatibility with every router or cellular network.
@@ -147,9 +164,12 @@ Browser A <════ direct encrypted WebRTC data channel: game state ══�
   and relay/peer diagnostics. It contains no game rules.
 - `src/arcade.js`: small shared session layer: profiles, a game registry, message
   routing, join/leave callbacks, and repair snapshots.
-- `src/game.js` and `src/games/`: pure game models. `competition.js` shares only the
-  round/input/snapshot lifecycle between the two real-time competitive games.
-- `src/main.js` and `src/views.js`: room UI, game selection, rendering, and controls.
+- `src/game.js` and `src/games/`: pure game models. `competition.js` shares the
+  round/input/snapshot lifecycle across the three real-time competitive games;
+  `hockey.js` supplies its own two-seat rules, puck physics and snapshot validation.
+- `src/main.js`, `src/views.js` and `src/hockey-view.js`: room UI, game selection,
+  rendering, and controls. The hockey rink is original SVG artwork updated from
+  the same authoritative state in both players' browsers.
 - `src/room-code.js`: random room codes and hash URL helpers.
 
 The session layer is the beginning of a reusable framework, not a complete engine.
@@ -223,8 +243,9 @@ npm run test:browser
 This builds/runs the production app and uses real public signaling and native
 WebRTC. It checks separate IDs, bidirectional clicks, room isolation, late canvas state,
 private delivery with a third observer, cursors, pings, turn enforcement and spectators,
-both competitive games, host departure/restart, subfolder deployment, mobile width,
-keyboard input, and no uncaught page errors. It inspects native data-channel statistics and closes/blocks
+all three competitive games, real hockey goals, mouse/touch/keyboard paddle control,
+spectator state, opponent forfeits, host departure/restart, subfolder deployment,
+mobile width, and no uncaught page errors. It inspects native data-channel statistics and closes/blocks
 signaling sockets after connection to verify gameplay continues directly. Expect
 public-network variability; this integration check is separate from deterministic
 CI tests. Set `PLAYWRIGHT_CHANNEL=msedge` to use installed Edge instead of Chromium,
@@ -233,7 +254,7 @@ or `PLAYWRIGHT_BASE_URL` to test an already running local server.
 ## Sensible next steps
 
 1. Measure connection success, latency and host performance on real phones/networks.
-2. Add a ready check and explicit player selection before competitive rounds.
+2. Add a ready check; extend hockey's explicit opponent selection to the larger games.
 3. Improve movement smoothing/prediction, mobile camera framing and accessibility.
 4. Add message budgets, room limits and abuse controls before opening larger rooms.
 5. Decide whether persistence, fair competition or automatic host migration is worth

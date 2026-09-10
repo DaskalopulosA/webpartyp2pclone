@@ -44,7 +44,8 @@ function renderGame() {
   const scoreOf = id => selected === 'button' ? arcade.button.players.get(id)?.clicks ?? 0
     : selected === 'cursors' ? arcade.cursors.states.get(id)?.score ?? 0
     : selected === 'arena' ? Math.ceil(arcade.arena.round?.players.find(p => p.id === id)?.hp ?? 0)
-    : selected === 'jump' ? Math.floor(arcade.jump.round?.players.find(p => p.id === id)?.best ?? 0) : null;
+    : selected === 'jump' ? Math.floor(arcade.jump.round?.players.find(p => p.id === id)?.best ?? 0)
+    : selected === 'hockey' ? arcade.hockey.round?.players.find(p => p.id === id)?.score ?? null : null;
   ids.sort((a, b) => (scoreOf(b) ?? 0) - (scoreOf(a) ?? 0) || a.localeCompare(b));
   $('player-count').textContent = ids.length;
   $('total').textContent = [...arcade.button.players.values()].reduce((total, p) => total + BigInt(p.clicks), 0n).toLocaleString();

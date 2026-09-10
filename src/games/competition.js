@@ -88,22 +88,23 @@ function validSnapshot(data, kind) {
 
 // The browser that starts a round runs its simulation. Other browsers only send
 // controls. Losing that browser ends the round; restarting elects a new host.
-export function createCompetition(kind, selfId, send, changed, peerIds) {
+export function createCompetition(kind, selfId, send, changed, peerIds, rules = {}) {
   let round = null, clock = 0, inputSeq = 0, tick = 0;
   const inputs = new Map();
   const connected = id => id === selfId || peerIds().includes(id);
   return {
     get round() { return round; },
     get interrupted() { return !!round && !connected(round.author); },
-    start() {
+    start(opponent) {
       if (clock >= 1e9) return;
-      const ids = [selfId, ...peerIds().filter(id => id !== selfId).sort()].slice(0, 8);
-      round = { ...initialCompetition(kind, ids), clock: ++clock, author: selfId, frame: 0 };
+      const ids = rules.seats ? rules.seats(selfId, peerIds(), opponent) : [selfId, ...peerIds().filter(id => id !== selfId).sort()].slice(0, 8);
+      if (!ids) return;
+      round = { ...(rules.initial ? rules.initial(ids) : initialCompetition(kind, ids)), clock: ++clock, author: selfId, frame: 0 };
       inputs.clear(); tick = 0; send('snapshot', round); changed();
     },
-    input(x, y = 0, fire = false) {
+    input(x, y = 0, fire = false, position = false) {
       if (!round || round.phase !== 'running' || !round.players.some(p => p.id === selfId) || !connected(round.author)) return;
-      const data = { clock: round.clock, author: round.author, seq: ++inputSeq, x: clamp(x, -1, 1), y: clamp(y, -1, 1), fire: !!fire };
+      const data = { clock: round.clock, author: round.author, seq: ++inputSeq, x: clamp(x, -1, 1), y: clamp(y, -1, 1), fire: !!fire, position: !!position };
       if (round.author === selfId) inputs.set(selfId, { ...data, at: round.time });
       else send('input', data, round.author);
     },
@@ -114,19 +115,20 @@ export function createCompetition(kind, selfId, send, changed, peerIds) {
         if (!connected(p.id) && kind === 'jump') p.active = false;
         if (!connected(p.id) || (inputs.has(p.id) && round.time - inputs.get(p.id).at > .35)) inputs.delete(p.id);
       }
-      stepCompetition(round, inputs, dt); round.frame++;
-      if (++tick % 2 === 0 || round.phase === 'finished') send('snapshot', round);
+      rules.disconnected?.(round, connected);
+      (rules.step ?? stepCompetition)(round, inputs, dt); round.frame++;
+      if (++tick % (rules.snapshotEvery ?? 2) === 0 || round.phase === 'finished') send('snapshot', round);
       changed();
     },
     sync(peerId) { if (round?.author === selfId) send('snapshot', round, peerId); },
     receive(type, data, sender) {
       if (type === 'snapshot') {
-        if (!validSnapshot(data, kind) || data.author !== sender) return;
+        if (!(rules.valid ? rules.valid(data) : validSnapshot(data, kind)) || data.author !== sender) return;
         const order = round ? data.clock - round.clock || (data.author > round.author ? 1 : data.author < round.author ? -1 : 0) : 1;
         if (order < 0 || (order === 0 && data.frame <= round.frame)) return;
         clock = Math.max(clock, data.clock); round = structuredClone(data); changed();
       } else if (type === 'input' && round?.author === selfId && data) {
-        if (data.clock !== round.clock || data.author !== selfId || !round.players.some(p => p.id === sender) || !Number.isSafeInteger(data.seq) || data.seq <= (inputs.get(sender)?.seq ?? -1) || ![data.x, data.y].every(v => Number.isFinite(v) && Math.abs(v) <= 1) || typeof data.fire !== 'boolean') return;
+        if (data.clock !== round.clock || data.author !== selfId || !round.players.some(p => p.id === sender) || !Number.isSafeInteger(data.seq) || data.seq <= (inputs.get(sender)?.seq ?? -1) || ![data.x, data.y].every(v => Number.isFinite(v) && Math.abs(v) <= 1) || typeof data.fire !== 'boolean' || (data.position !== undefined && typeof data.position !== 'boolean')) return;
         inputs.set(sender, { ...data, at: round.time });
       }
     },

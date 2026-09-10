@@ -4,6 +4,7 @@ import { SIGNALS } from './games/secrets.js';
 import { resultOf } from './games/tiles.js';
 import { targetFor } from './games/cursors.js';
 import { platform, safeRadius } from './games/competition.js';
+import { mountHockey } from './hockey-view.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const node = document.createElement(tag); node.className = cls; if (text !== undefined) node.textContent = text; return node; };
@@ -51,6 +52,7 @@ export function mountGames(getArcade, getConnection, notice, select) {
       <p class="muted">${kind === 'arena' ? 'WASD / arrows to move · hold Space to fire · supplies restore health & ammo' : 'A / D or arrow keys to steer · bounce is automatic · checkpoints every 500 m'}. Late joiners watch until the next round.</p>
     </section>`).join('')}`;
 
+  const hockeyView = mountHockey(getArcade);
   let selectedColor = 1, roster = '', secretSignature = '', cursorSentAt = 0;
   let echoBusy = false, echoCorrect = 0, echoAttempts = 0;
   const keys = new Set();
@@ -99,14 +101,14 @@ export function mountGames(getArcade, getConnection, notice, select) {
   for (const kind of ['arena', 'jump']) $('start-' + kind).onclick = () => { getArcade()?.[kind].start(); $(kind + '-canvas').focus({ preventScroll: true }); };
   window.addEventListener('keydown', e => {
     const id = getArcade()?.profiles.get(getArcade()?.selfId)?.game;
-    if (!['arena', 'jump'].includes(id) || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    if (!['arena', 'jump', 'hockey'].includes(id) || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     const mapped = { ArrowLeft: 'a', ArrowRight: 'd', ArrowUp: 'w', ArrowDown: 's' }[e.key] || e.key.toLowerCase();
-    if (['a', 'd', 'w', 's', ' '].includes(mapped)) { e.preventDefault(); keys.add(mapped); }
+    if (['a', 'd', 'w', 's', ' '].includes(mapped)) { e.preventDefault(); hockeyView.clearPointer(); keys.add(mapped); }
   });
   window.addEventListener('keyup', e => keys.delete({ ArrowLeft: 'a', ArrowRight: 'd', ArrowUp: 'w', ArrowDown: 's' }[e.key] || e.key.toLowerCase()));
-  window.addEventListener('blur', () => keys.clear());
+  window.addEventListener('blur', () => { keys.clear(); hockeyView.clearPointer(); });
   document.querySelectorAll('[data-control]').forEach(b => {
-    b.onpointerdown = e => { e.preventDefault(); b.setPointerCapture(e.pointerId); keys.add(b.dataset.control); };
+    b.onpointerdown = e => { e.preventDefault(); b.setPointerCapture(e.pointerId); hockeyView.clearPointer(); keys.add(b.dataset.control); };
     b.onpointerup = b.onpointercancel = b.onlostpointercapture = () => keys.delete(b.dataset.control);
   });
 
@@ -115,7 +117,7 @@ export function mountGames(getArcade, getConnection, notice, select) {
     const current = JSON.stringify([...arcade.peers].map(id => [id, playerName(id)]));
     if (current !== roster) {
       roster = current;
-      for (const id of ['secret-peer', 'tiles-peer', 'echo-peer']) {
+      for (const id of ['secret-peer', 'tiles-peer', 'echo-peer', 'hockey-peer']) {
         const chosen = $(id).value;
         $(id).replaceChildren(...(arcade.peers.size ? [...arcade.peers].map(peerId => { const o = el('option', '', playerName(peerId)); o.value = peerId; return o; }) : [el('option', '', 'Waiting for a friend…')]));
         if (!arcade.peers.size) $(id).firstChild.value = '';
@@ -132,13 +134,15 @@ export function mountGames(getArcade, getConnection, notice, select) {
         arcade[kind].input(selected === kind ? Number(keys.has('d')) - Number(keys.has('a')) : 0, selected === kind ? Number(keys.has('s')) - Number(keys.has('w')) : 0, selected === kind && keys.has(' '));
         arcade[kind].step(.05);
       }
+      hockeyView.controls(selected, keys);
     },
-    clearControls() { keys.clear(); },
+    clearControls() { keys.clear(); hockeyView.clearPointer(); },
     render(selected) {
       const arcade = getArcade(); if (!arcade) return;
       renderPeers(arcade);
       document.querySelectorAll('.game-choice').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.game === selected)));
       document.querySelectorAll('.game-panel').forEach(p => { p.hidden = p.id !== `panel-${selected}`; });
+      if (selected === 'hockey') hockeyView.render(playerName);
       if (selected === 'pixels') $('pixel-board').childNodes.forEach((b, i) => { b.style.background = COLORS[arcade.pixels.cells[i][0]]; b.dataset.color = arcade.pixels.cells[i][0]; });
       if (selected === 'cursors') {
         const me = arcade.cursors.states.get(arcade.selfId), target = targetFor(me.score);

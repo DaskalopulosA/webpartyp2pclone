@@ -4,6 +4,7 @@ import { createCursors } from './games/cursors.js';
 import { createSecrets } from './games/secrets.js';
 import { createTiles } from './games/tiles.js';
 import { createCompetition } from './games/competition.js';
+import { createHockey } from './games/hockey.js';
 
 export const GAMES = [
   { id: 'button', title: 'Button Club', icon: '↖', feature: 'Shared counters', description: 'A familiar button. A little friendly competition.' },
@@ -14,6 +15,7 @@ export const GAMES = [
   { id: 'echo', title: 'Echo Guess', icon: '↔', feature: 'Request & response', description: 'Guess how quickly your friend’s browser answers.' },
   { id: 'arena', title: 'Last Light', icon: '◎', feature: 'Survival arena', description: 'Scavenge supplies. Dodge the storm. Be the last one standing.' },
   { id: 'jump', title: 'Sky Sprint', icon: '↑', feature: 'Platform race', description: 'Bounce your way to the top before your friends do.' },
+  { id: 'hockey', title: 'Table Hockey', icon: '◉', feature: 'Puck & paddle physics', description: 'Defend your half. Find the angle. First to five wins.' },
 ];
 
 // A small routing/lifecycle layer shared by the demos, not a general game engine.
@@ -32,6 +34,7 @@ export function createArcade(selfId, name, { send, changed, log }) {
     tiles: createTiles(selfId, channel('tiles'), changed, hasPeer),
     arena: createCompetition('arena', selfId, channel('arena'), changed, () => [...peers]),
     jump: createCompetition('jump', selfId, channel('jump'), changed, () => [...peers]),
+    hockey: createHockey(selfId, channel('hockey'), changed, () => [...peers]),
   };
   function sync(target) {
     channel('presence')('profile', { ...profiles.get(selfId) }, target);

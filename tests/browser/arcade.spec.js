@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('eight-game arcade across three real peers, private delivery and competitive rounds', async ({ browser }, info) => {
+test('nine-game arcade across three real peers, private delivery and competitive rounds', async ({ browser }, info) => {
   const context = await browser.newContext({ baseURL: info.project.use.baseURL });
   const errors = []; context.on('page', page => page.on('pageerror', e => errors.push(e.message)));
   const a = await context.newPage(), b = await context.newPage(), c = await context.newPage();
@@ -16,7 +16,7 @@ test('eight-game arcade across three real peers, private delivery and competitiv
     await expect(a.locator('#player-count')).toHaveText('2');
     await expect(b.locator('#players')).toContainText('Alice');
     const bobId = await b.locator('.is-you').getAttribute('data-peer-id');
-    await expect(a.locator('.game-choice')).toHaveCount(8);
+    await expect(a.locator('.game-choice')).toHaveCount(9);
     await choose(a, 'pixels'); await choose(b, 'pixels');
     await a.locator('.pixel[data-cell="0"]').click();
     await expect(b.locator('.pixel[data-cell="0"]')).toHaveAttribute('data-color', '1');
